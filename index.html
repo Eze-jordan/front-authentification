@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inscription avec OTP</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      width: 320px;
+    }
+
+    h2, h3 {
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    form input,
+    #otpSection input {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: royalblue;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #message {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    #loginLink {
+      display: none;
+      text-align: center;
+      margin-top: 15px;
+    }
+
+    #loginLink a {
+      color: royalblue;
+      text-decoration: underline;
+    }
+
+    .center-text {
+      text-align: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Créer un compte</h2>
+
+    <form id="registerForm">
+      <input type="text" id="nom" placeholder="Nom" required />
+      <input type="text" id="prenom" placeholder="Prénom" required />
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Mot de passe" required />
+      <input type="text" id="sexe" placeholder="HOMME / FEMME" required />
+      <button type="submit">S'inscrire</button>
+    </form>
+
+    <div class="center-text">
+      <p>Vous avez déjà un compte ? <a href="login.html">Se connecter</a></p>
+    </div>
+
+    <div id="otpSection" style="display: none;">
+      <h3>Entrez le code OTP</h3>
+      <input type="text" id="otp" placeholder="Code OTP" maxlength="6" />
+      <button onclick="validerOtp()">Valider OTP</button>
+    </div>
+
+    <div id="message"></div>
+    <div id="loginLink">
+      <a href="login.html">➡️ Aller à la connexion</a>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("registerForm");
+    const otpSection = document.getElementById("otpSection");
+    const message = document.getElementById("message");
+    const loginLink = document.getElementById("loginLink");
+
+    let emailTemp = "";
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const data = {
+        nom: document.getElementById("nom").value,
+        prenom: document.getElementById("prenom").value,
+        email: document.getElementById("email").value,
+        motDePasse: document.getElementById("password").value,
+        sexe: document.getElementById("sexe").value,
+      };
+
+      emailTemp = data.email;
+
+      try {
+        const response = await fetch("https://api-authentification.esiitech-gabon.com/api/utilisateurs/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+          message.style.color = "green";
+          message.textContent = "✅ Inscription réussie. Un code vous a été envoyé.";
+          otpSection.style.display = "block";
+          form.style.display = "none";
+        } else {
+          const err = await response.text();
+          message.style.color = "red";
+          message.textContent = "Erreur : " + err;
+        }
+      } catch (error) {
+        message.style.color = "red";
+        message.textContent = "Erreur réseau : " + error.message;
+      }
+    });
+
+    async function validerOtp() {
+      const otp = document.getElementById("otp").value;
+
+      try {
+        const response = await fetch("https://api-authentification.esiitech-gabon.com/api/utilisateurs/activation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailTemp, code: otp })
+        });
+
+        if (response.ok) {
+          message.style.color = "green";
+          message.textContent = "🎉 Compte activé avec succès !";
+          loginLink.style.display = "block";
+        } else {
+          const err = await response.text();
+          message.style.color = "red";
+          message.textContent = "Erreur d'activation : " + err;
+        }
+      } catch (error) {
+        message.style.color = "red";
+        message.textContent = "Erreur réseau : " + error.message;
+      }
+    }
+  </script>
+
+</body>
+</html>

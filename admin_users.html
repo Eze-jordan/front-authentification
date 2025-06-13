@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin - Utilisateurs</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      margin: 0;
+      background-color: #f4f4f4;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-color: #2c3e50;
+      color: white;
+      height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .sidebar h2 {
+      margin-bottom: 20px;
+    }
+
+    .sidebar a {
+      display: block;
+      color: white;
+      text-decoration: none;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+
+    .sidebar a:hover {
+      text-decoration: underline;
+    }
+
+    .content {
+      flex: 1;
+      padding: 30px;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+    }
+
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+
+    button {
+      padding: 6px 10px;
+      background: red;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    input, select {
+      padding: 8px;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+
+    #message {
+      margin-top: 10px;
+      color: green;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .otp-container {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>Admin Panel</h2>
+    <a onclick="showSection('list')">📄 Tous les utilisateurs</a>
+    <a onclick="showSection('create')">➕ Créer un utilisateur</a>
+    <a onclick="showSection('edit')">✏️ Modifier un utilisateur</a>
+    <a onclick="showSection('delete')">🗑️ Supprimer un utilisateur</a>
+        <a href="#" onclick="logout()">Se déconnecter</a>
+
+  </div>
+
+  <div class="content">
+    <h1 id="sectionTitle">Tous les utilisateurs</h1>
+    <div id="message"></div>
+
+    <!-- Liste des utilisateurs -->
+    <div id="listSection">
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nom</th>
+            <th>Email</th>
+            <th>Rôle</th>
+            <th>Actif</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Création d'utilisateur -->
+    <div id="createSection" class="hidden">
+      <h3>Créer un utilisateur</h3>
+      <input type="text" id="newNom" placeholder="Nom" />
+      <input type="text" id="newPrenom" placeholder="Prénom" />
+      <input type="email" id="newEmail" placeholder="email@example.com" />
+      <input type="text" id="newSexe" placeholder="HOMME / FEMME" />
+      <input type="password" id="newMotDePasse" placeholder="Mot de passe" />
+      <select id="newRole">
+        <option value="USER">Utilisateur</option>
+        <option value="ADMIN">Administrateur</option>
+      </select>
+      <button onclick="creerUtilisateurEtAfficherOtp()">Créer</button>
+      <div id="otpSection" class="otp-container hidden">
+        <h4>Code OTP reçu</h4>
+        <input type="text" id="otpCode" placeholder="Saisir OTP ici..." />
+        <button onclick="validerOtp()">Valider OTP</button>
+      </div>
+    </div>
+
+    <!-- Modifier utilisateur -->
+    <div id="editSection" class="hidden">
+      <h3>Modifier un utilisateur</h3>
+      <input type="number" id="editId" placeholder="ID de l'utilisateur" />
+      <input type="text" id="editNom" placeholder="Nouveau nom" />
+      <input type="text" id="editPrenom" placeholder="Nouveau prénom" />
+      <input type="email" id="editEmail" placeholder="Nouveau email" />
+      <input type="password" id="editMotDePasse" placeholder="Nouveau mot de passe" />
+      <button onclick="modifierInfos()">Enregistrer</button>
+    </div>
+
+    <!-- Supprimer utilisateur -->
+    <div id="deleteSection" class="hidden">
+      <h3>Supprimer un utilisateur</h3>
+      <input type="number" id="deleteId" placeholder="ID de l'utilisateur" />
+      <button onclick="deleteUser()">Supprimer</button>
+    </div>
+  </div>
+
+  <script>
+  const token = localStorage.getItem("jwt");
+  const apiUrl = "https://api-authentification.esiitech-gabon.com/api";
+  const tableBody = document.querySelector("#usersTable tbody");
+  const message = document.getElementById("message");
+
+  let currentUserIdToConfirm = null;
+
+  function showSection(section) {
+    const sections = ["listSection", "createSection", "editSection", "deleteSection"];
+    sections.forEach(id => document.getElementById(id)?.classList.add("hidden"));
+    document.getElementById(section + "Section").classList.remove("hidden");
+    document.getElementById("sectionTitle").textContent = {
+      list: "Tous les utilisateurs",
+      create: "Créer un utilisateur",
+      edit: "Modifier un utilisateur",
+      delete: "Supprimer un utilisateur"
+    }[section] || "Section";
+  }
+
+  async function fetchUsers() {
+    try {
+      const res = await fetch(`${apiUrl}/utilisateurs/all`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error("Erreur de chargement des utilisateurs");
+      const users = await res.json();
+      tableBody.innerHTML = "";
+      users.forEach(user => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${user.id}</td>
+          <td>${user.nom}</td>
+          <td>${user.email}</td>
+          <td>${user.role}</td>
+          <td>${user.actif ? "Oui" : "Non"}</td>
+          <td><button onclick="supprimerAvecValidationParId(${user.id})">Supprimer</button></td>
+        `;
+        tableBody.appendChild(row);
+      });
+    } catch (err) {
+      message.style.color = "red";
+      message.textContent = err.message;
+    }
+  }
+
+  async function creerUtilisateurEtAfficherOtp() {
+    const nom = document.getElementById("newNom").value.trim();
+    const prenom = document.getElementById("newPrenom").value.trim();
+    const email = document.getElementById("newEmail").value.trim();
+    const sexe = document.getElementById("newSexe").value.trim();
+    const motDePasse = document.getElementById("newMotDePasse").value;
+    const role = document.getElementById("newRole").value;
+
+    if (!nom || !prenom || !email || !motDePasse || !sexe) {
+      message.style.color = "red";
+      message.textContent = "Tous les champs sont requis.";
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/utilisateurs/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ nom, prenom, email, sexe, motDePasse, role })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        currentUserIdToConfirm = data.id;
+        message.style.color = "green";
+        message.textContent = "Utilisateur créé. Entrez le code OTP reçu.";
+        document.getElementById("otpSection").classList.remove("hidden");
+      } else {
+        const errText = await res.text();
+        message.style.color = "red";
+        message.textContent = "Erreur : " + errText;
+      }
+    } catch (err) {
+      message.style.color = "red";
+      message.textContent = "Erreur réseau : " + err.message;
+    }
+  }
+
+  async function validerOtp() {
+    const otpCode = document.getElementById("otpCode").value.trim();
+    if (!otpCode || !currentUserIdToConfirm) return;
+
+    try {
+      const res = await fetch(`${apiUrl}/utilisateurs/activation`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idUtilisateur: currentUserIdToConfirm,
+          codeOtp: otpCode
+        })
+      });
+
+      if (res.ok) {
+        alert("✅ OTP validé !");
+        fetchUsers();
+        showSection("list");
+      } else {
+        const contentType = res.headers.get("Content-Type");
+        let errMessage = "";
+
+        if (contentType && contentType.includes("application/json")) {
+          const errJson = await res.json();
+          errMessage = errJson.message || JSON.stringify(errJson);
+        } else {
+          errMessage = await res.text();
+        }
+
+        alert("❌ Erreur OTP : " + (errMessage || "Erreur inconnue"));
+      }
+    } catch (e) {
+      alert("Erreur réseau : " + e.message);
+    }
+  }
+
+  async function modifierInfos() {
+    const id = document.getElementById("editId").value;
+    const nom = document.getElementById("editNom").value;
+    const prenom = document.getElementById("editPrenom").value;
+    const email = document.getElementById("editEmail").value;
+    const motDePasse = document.getElementById("editMotDePasse").value;
+
+    if (!id || !nom || !prenom || !email || !motDePasse) {
+      alert("Tous les champs sont requis");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/utilisateurs/${id}/update`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ nom, prenom, email, motDePasse })
+      });
+
+      if (res.ok) {
+        alert("Utilisateur mis à jour.");
+        fetchUsers();
+        showSection("list");
+      } else {
+        const err = await res.text();
+        alert("Erreur : " + err);
+      }
+    } catch (err) {
+      alert("Erreur réseau : " + err.message);
+    }
+  }
+
+  async function supprimerAvecValidationParId(id) {
+    try {
+      const valRes = await fetch(`${apiUrl}/validations`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      const validations = await valRes.json();
+      const val = validations.find(v => v.utilisateur?.id == id);
+
+      if (!val) return alert("❌ Aucune validation trouvée pour cet utilisateur");
+
+      await fetch(`${apiUrl}/validations/${val.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      const res = await fetch(`${apiUrl}/utilisateurs/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        message.style.color = "green";
+        message.textContent = "Utilisateur supprimé avec succès";
+        fetchUsers();
+        showSection("list");
+      } else {
+        message.style.color = "red";
+        message.textContent = "Utilisateur supprimé avec succès.";
+      }
+    } catch (err) {
+      alert("Erreur réseau : " + err.message);
+    }
+  }
+
+  async function deleteUser() {
+    const id = document.getElementById("deleteId").value;
+    if (!id) return alert("Veuillez entrer un ID");
+
+    supprimerAvecValidationParId(id);
+  }
+     function logout() {
+      localStorage.removeItem("jwt");
+      window.location.href = "/login.html";
+    }
+
+
+  window.onload = () => {
+    fetchUsers();
+    showSection("list");
+  };
+</script>
+
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Page Utilisateur</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 200px;
+      background-color: #333;
+      color: white;
+      padding: 20px;
+    }
+
+    .sidebar h3 {
+      margin-bottom: 20px;
+    }
+
+    .sidebar a {
+      color: white;
+      text-decoration: none;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .content {
+      flex: 1;
+      padding: 40px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: royalblue;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #message {
+      margin-top: 10px;
+      color: green;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h3 id="username">Bienvenue</h3>
+    <a href="#" onclick="afficherForm()">Modifier mes infos</a>
+    <a href="#" onclick="logout()">Se déconnecter</a>
+  </div>
+
+  <div class="content">
+    <h2>Laisser un avis</h2>
+    <textarea id="avis" placeholder="Votre avis ici..."></textarea>
+    <button onclick="envoyerAvis()">Envoyer</button>
+    <div id="message"></div>
+
+    <div id="editForm" style="display: none; margin-top: 40px;">
+      <h3>Modifier mes informations</h3>
+      <input type="text" id="nom" placeholder="Nouveau nom" />
+      <input type="text" id="prenom" placeholder="Nouveau prénom" />
+      <input type="email" id="email" placeholder="Nouveau email" />
+      <input type="password" id="motDePasse" placeholder="Nouveau mot de passe" />
+      <button onclick="modifierInfos()">Enregistrer</button>
+    </div>
+  </div>
+
+  <script>
+    let token;
+    let userId;
+    let userEmail;
+
+    function parseJwt(token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+          '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        console.error("Erreur de décodage du token :", e);
+        return null;
+      }
+    }
+
+    function init() {
+      token = localStorage.getItem("jwt");
+
+      if (!token || token.split('.').length !== 3) {
+        alert("Token invalide. Veuillez vous reconnecter.");
+        window.location.href = "/login.html";
+        return;
+      }
+
+      const utilisateur = parseJwt(token);
+      if (!utilisateur || utilisateur.id === undefined) {
+        alert("Token expiré ou invalide.");
+        localStorage.removeItem("jwt");
+        window.location.href = "/login.html";
+        return;
+      }
+
+      userId = utilisateur.id;
+      userEmail = utilisateur.email;
+      document.getElementById("username").textContent = "Bienvenue " + utilisateur.nom;
+      document.getElementById("email").value = utilisateur.email;
+    }
+
+    function afficherForm() {
+      document.getElementById("editForm").style.display = "block";
+    }
+
+    async function envoyerAvis() {
+      const avisText = document.getElementById("avis").value.trim();
+      const message = document.getElementById("message");
+
+      if (!avisText) {
+        message.textContent = "Veuillez entrer un avis.";
+        message.style.color = "red";
+        return;
+      }
+
+      try {
+        const res = await fetch("https://api-authentification.esiitech-gabon.com/api/avis", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ message: avisText })
+        });
+
+        if (res.ok) {
+          message.textContent = "Merci pour votre avis !";
+          message.style.color = "green";
+          document.getElementById("avis").value = "";
+        } else {
+          const err = await res.text();
+          message.textContent = "Erreur : " + err;
+          message.style.color = "red";
+        }
+      } catch (e) {
+        message.textContent = "Erreur réseau : " + e.message;
+        message.style.color = "red";
+      }
+    }
+
+    async function modifierInfos() {
+      const nom = document.getElementById("nom").value.trim();
+      const prenom = document.getElementById("prenom").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const motDePasse = document.getElementById("motDePasse").value.trim();
+
+      if (!nom || !prenom || !email || !motDePasse) {
+        alert("Tous les champs sont obligatoires !");
+        return;
+      }
+
+      const body = {
+        nom,
+        prenom,
+        email,
+        motDePasse
+      };
+
+      try {
+        const res = await fetch(`https://api-authentification.esiitech-gabon.com/api/utilisateurs/${userId}/update`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+          alert("Informations mises à jour !");
+          document.getElementById("editForm").style.display = "none";
+        } else {
+          const err = await res.text();
+          alert("Erreur : " + err);
+        }
+      } catch (e) {
+        alert("Erreur réseau : " + e.message);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("jwt");
+      window.location.href = "/login.html";
+    }
+
+    window.onload = init;
+  </script>
+
+</body>
+</html>
